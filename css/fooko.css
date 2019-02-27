@@ -1,0 +1,27 @@
+body {
+  /* background-color: #ff0000; */
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+}
+#mainArea {
+  width: 450px;
+  height: 730px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#wave {
+  display: none;
+  position: relative;
+  width: 640px;
+  height: 400px;
+  background: #888888;
+}
+
+.wave_bar {
+  position: absolute;
+  background-color: #ffffff;
+}
