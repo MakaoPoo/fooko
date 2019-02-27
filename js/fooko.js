@@ -10,24 +10,6 @@ let mouth_open_tf;
 let mouth_anime_frame = [0, 0, 0, 0, 0];
 
 $(function() {
-  audioContext = new AudioContext();
-  analyser = audioContext.createAnalyser();
-  analyser.minDecibels = -90; //最小値
-  analyser.maxDecibels = 0; //最大値
-  analyser.smoothingTimeConstant = 0.65;
-  analyser.fftSize = 2048; //音域の数
-
-  bufferLength = analyser.frequencyBinCount; //fftSizeの半分のサイズ
-  dataArray = new Uint8Array(bufferLength); //波形データ格納用の配列を初期化
-  analyser.getByteFrequencyData(dataArray); //周波数領域の波形データを取得
-
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-  .then(function(stream) {
-    source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser);
-
-  })
-  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 
   $('#mainArea').load('resource/fit_fooko.svg svg', function(e) {
     const $black_eye_left = SVG('#black_eye_left');
@@ -37,31 +19,52 @@ $(function() {
     eye_left_tf = $black_eye_left.transform();
     eye_right_tf = $black_eye_right.transform();
     mouth_open_tf = $mouth_open.transform();
-    
-    $(document).on('mousemove', function (e) {
+
+    $(document).on('touchmove', function (e) {
       eyeMove(e);
     });
 
     $('#fooko').attr('width', '100%');
     $('#fooko').attr('height', '100%');
-    
-    main();
+
+    $(document).on('touchstart', function() {
+      audioContext = new AudioContext();
+      analyser = audioContext.createAnalyser();
+      analyser.minDecibels = -90; //最小値
+      analyser.maxDecibels = 0; //最大値
+      analyser.smoothingTimeConstant = 0.65;
+      analyser.fftSize = 2048; //音域の数
+
+      bufferLength = analyser.frequencyBinCount; //fftSizeの半分のサイズ
+      dataArray = new Uint8Array(bufferLength); //波形データ格納用の配列を初期化
+      analyser.getByteFrequencyData(dataArray); //周波数領域の波形データを取得
+
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(function(stream) {
+        source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+      })
+      .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+
+      main();
+    });
   });
 });
 
 $(window).on('resize load', function () {
   console.log('resize');
-  
+
   const bodyWidth = $('body').width();
   const bodyHeight = $('body').height();
-  
+
   const whRate = bodyWidth / bodyHeight;
 
   const fookoWidth = 450;
   const fookoHeight = 730;
 
   const fookoRate = fookoWidth / fookoHeight;
-  
+
   if (whRate > fookoRate) {
     const width = bodyHeight * fookoRate;
     const height = '100%';
