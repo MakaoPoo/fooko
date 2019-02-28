@@ -25,3 +25,9 @@ body {
   position: absolute;
   background-color: #ffffff;
 }
+
+#start {
+  position: absolute;
+  width: 40vw;
+  height: 20vw;
+}

@@ -29,7 +29,8 @@ $(function() {
     $('#fooko').attr('width', '100%');
     $('#fooko').attr('height', '100%');
 
-    $(document).on('click touchstart', function() {
+    // $(document).on('click touchstart', function() {
+    $('#start').on('click touch', function() {
       audioContext = new AudioContext();
       analyser = audioContext.createAnalyser();
       analyser.minDecibels = -90; //最小値
