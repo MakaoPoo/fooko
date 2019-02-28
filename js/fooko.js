@@ -20,14 +20,16 @@ $(function() {
     eye_right_tf = $black_eye_right.transform();
     mouth_open_tf = $mouth_open.transform();
 
-    $(document).on('touchmove', function (e) {
-      eyeMove(e);
+    $('body').on('touchmove', function (e) {
+      const x = e.touches[0].pageX;
+      const y = e.touches[0].pageY;
+      eyeMove(x, y);
     });
 
     $('#fooko').attr('width', '100%');
     $('#fooko').attr('height', '100%');
 
-    $(document).on('touchstart', function() {
+    $(document).on('click touchstart', function() {
       audioContext = new AudioContext();
       analyser = audioContext.createAnalyser();
       analyser.minDecibels = -90; //最小値
@@ -88,14 +90,17 @@ const main = function() {
   requestAnimationFrame(main);
 }
 
-const eyeMove = function(e) {
+const eyeMove = function(pageX, pageY) {
   const $black_eye_left = SVG('#black_eye_left');
   const $black_eye_right = SVG('#black_eye_right');
 
   const moveRate = 100;
 
-  let move_x = (e.pageX - $('body').width()/2) / moveRate;
-  let move_y = (e.pageY - $('body').height()/2) / moveRate;
+  const centerX = $('body').width() / 2;
+  const centerY = $('body').height() / 2;
+
+  let move_x = 10 * (pageX - centerX) / centerX;
+  let move_y = 10 * (pageY - centerY) / centerY;
 
   if(move_x > 6) {
     move_x = 6;
