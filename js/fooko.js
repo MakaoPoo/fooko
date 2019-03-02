@@ -10,6 +10,7 @@ let mouth_open_tf;
 let mouth_anime_frame = [0, 0, 0, 0, 0];
 
 let $video = null;
+let ctracker = null;
 
 $(function() {
 
@@ -25,6 +26,12 @@ $(function() {
     $('body').on('touchmove', function (e) {
       const x = e.touches[0].pageX;
       const y = e.touches[0].pageY;
+      eyeMove(x, y);
+    });
+
+    $('body').on('mousemove', function (e) {
+      const x = e.pageX;
+      const y = e.pageY;
       eyeMove(x, y);
     });
 
@@ -56,15 +63,78 @@ $(function() {
         $video = $('#video')[0];
         $video.srcObject = stream;
         $video.play();
-        console.log($('#video'));
+
+        ctracker = new clm.tracker();
+        ctracker.init(pModel);
+        ctracker.start($video, 0, 0, 400, 260);
       })
       .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 
-
       main();
+      trackVoice();
+      trackFace();
     });
   });
 });
+
+let positions;
+
+const trackFace = function() {
+  if(ctracker != null) {
+    const positions = ctracker.getCurrentPosition();
+    if(positions) {
+
+      console.log(positions);
+
+      let minX = null;
+      let maxX = null;
+      let minY = null;
+      let maxY = null;
+
+      for(const position of positions) {
+        if(minX == null || position[0] < minX) {
+          minX = position[0];
+        }
+        if(maxX == null || position[0] > maxX) {
+          maxX = position[0];
+        }
+        if(minY == null || position[1] < minY) {
+          minY = position[1];
+        }
+        if(maxY == null || position[1] > maxY) {
+          maxY = position[1];
+        }
+      }
+
+      const $canvas = $('#canvas')[0];
+      const ctx = $canvas.getContext('2d');
+      ctx.clearRect(0, 0, $canvas.width, $canvas.height);
+      // ctracker.draw($canvas);
+
+      const width = maxX - minX;
+      const height = maxY - minY;
+
+      ctx.strokeStyle = "#ff0000";
+      ctx.strokeRect(minX, minY, width, height);
+
+      ctx.fillStyle = "#0000ff";
+      ctx.beginPath();
+      ctx.arc(minX + width/2, minY + height/2, 5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+
+  setTimeout(trackFace, 200);
+}
+
+let nowVowel = 0;
+
+const trackVoice = function() {
+  analyser.getByteFrequencyData(dataArray);
+  nowVowel = getVowel(dataArray);
+
+  setTimeout(trackVoice, 33);
+}
 
 $(window).on('resize load', function () {
   console.log('resize');
@@ -93,409 +163,9 @@ $(window).on('resize load', function () {
 });
 
 const main = function() {
-  analyser.getByteFrequencyData(dataArray);
-
-  const vowel = getVowel(dataArray);
-
-  if($video != null) {
-    faceRecognition();
-  }
-
-  mouthAnimate(vowel);
+  mouthAnimate(nowVowel);
 
   requestAnimationFrame(main);
-}
-
-const imageSize = 50;
-let patternSize;
-
-const faceRecognition = function() {
-  const ctx = $('#face')[0].getContext('2d');
-  ctx.drawImage($video, 400, 120, 480, 480, 0, 0, imageSize, imageSize);
-
-  const imageData = ctx.getImageData(0, 0, imageSize, imageSize);
-  const originalData = getImageDataData(imageData);
-  const grayData = getGrayImageDataData(imageData);
-  setImageDataData(imageData, grayData);
-
-  // const pattern = getTateFacePattern();
-  // const pattern = getYokoFacePattern();
-  // addPatternImage(imageData, pattern);
-
-  ctx.putImageData(imageData, 0, 0);
-
-  // setImageDataData(imageData, originalData);
-
-  // console.log(imageData.data);
-
-  let basePatternSize = 12;
-
-  const sizeNum = 4;
-  let bestScore = [];
-  let bestX = [];
-  let bestY = [];
-  let use = [];
-
-  for(let i = 0; i< sizeNum; i++) {
-    bestScore.push(1000000000);
-    bestX.push(0);
-    bestY.push(0);
-    use.push(true);
-  }
-
-  for(let i = 0; i < sizeNum; i++) {
-    patternSize = basePatternSize + i * 3;
-    const tatePattern = getTateFacePattern();
-    const yokoPattern = getYokoFacePattern();
-    for(let shiftY = 0; shiftY + patternSize <= imageSize; shiftY++) {
-      for(let shiftX = 0; shiftX + patternSize <= imageSize; shiftX++) {
-        if(!isFaceArea(imageData, {x: shiftX, y: shiftY})) {
-          continue;
-        }
-        const tateScore = getTateFaceScore(imageData, tatePattern, {x: shiftX, y: shiftY});
-        const yokoScore = getYokoFaceScore(imageData, yokoPattern, {x: shiftX, y: shiftY});
-        const totalScore = tateScore * tateScore + yokoScore * yokoScore;
-        if(totalScore < bestScore[i]) {
-          bestScore[i] = totalScore;
-          bestX[i] = shiftX;
-          bestY[i] = shiftY;
-        }
-      }
-    }
-  }
-
-  // console.log(bestX + ", " + bestY);
-
-  let bestXSum = 0, bestYSum = 0;
-  for(let my = 0; my< sizeNum; my++) {
-    bestXSum = 0;
-    bestYSum = 0;
-    for(let other = 0; other< sizeNum; other++) {
-      if(my == other) {
-        continue;
-      }
-      const otherCenter = (basePatternSize + other * 3) / 2;
-      bestXSum += bestX[other] + otherCenter;
-      bestYSum += bestY[other] + otherCenter;
-    }
-
-    bestXSum /= sizeNum-1;
-    bestYSum /= sizeNum-1;
-
-    const myCenter = (basePatternSize + my * 3) / 2;
-    if(Math.pow(bestX[my] + myCenter - bestXSum, 2) + Math.pow(bestY[my] + myCenter - bestYSum, 2) > 12*12) {
-      use[my] = false;
-    }
-  }
-
-  bestXSum = 0;
-  bestYSum = 0;
-
-  let bestNum = 0;
-
-  for(let i = 0; i< sizeNum; i++) {
-    if(use[i]) {
-      ctx.strokeStyle  = "#ff0000";
-      bestXSum += bestX[i];
-      bestYSum += bestY[i];
-      bestNum += 1;
-    } else {
-      ctx.strokeStyle  = "#ff00ff";
-    }
-    ctx.strokeRect(bestX[i], bestY[i], basePatternSize + i * 3, basePatternSize + i * 3);
-  }
-  ctx.strokeStyle  = "#0000ff";
-  ctx.strokeRect(bestXSum/bestNum, bestYSum/bestNum, basePatternSize + (sizeNum/2) * 3, basePatternSize + (sizeNum/2) * 3);
-  // ctx.putImageData(imageData, 0, 0);
-}
-
-const setImageDataData = function(imageData, data) {
-  for(let y = 0; y < imageData.height; y++) {
-    for(let x = 0; x < imageData.width; x++) {
-      const offset = (imageData.width * 4 * y) + (4 * x);
-      imageData.data[offset + 0] = data[offset + 0];
-      imageData.data[offset + 1] = data[offset + 1];
-      imageData.data[offset + 2] = data[offset + 2];
-      imageData.data[offset + 3] = data[offset + 3];
-    }
-  }
-}
-
-const getImageDataData = function(imageData) {
-  const data = [];
-  Object.assign(data , imageData.data);
-
-  return data;
-}
-
-const addPatternImage = function(imageData, pattern) {
-  for(let y = 0; y < patternSize; y++) {
-    for(let x = 0; x < patternSize; x++) {
-      const offset = (imageData.width * 4 * y) + (4 * x);
-      const r = imageData.data[offset + 0];
-      const g = imageData.data[offset + 1];
-      const b = imageData.data[offset + 2];
-      let gray = (r + g + b) / 3;
-
-      if(pattern[y][x] == 1) {
-        gray -= gray * 0.25;
-      } else if(pattern[y][x] == 0){
-        gray += (255 - gray) * 0.25;
-      }
-
-      imageData.data[offset + 0] = gray;
-      imageData.data[offset + 1] = gray;
-      imageData.data[offset + 2] = gray;
-      imageData.data[offset + 3] = 255;
-    }
-  }
-}
-
-const getGrayImage = function(imageData) {
-  const grayImage = [];
-
-  for(let y = 0; y < imageSize; y++) {
-    const retsu = [];
-
-    for(let x = 0; x < imageSize; x++) {
-      const offset = (imageSize * 4 * y) + (4 * x);
-      const r = imageData[offset + 0];
-      const g = imageData[offset + 1];
-      const b = imageData[offset + 2];
-
-      retsu.push((r + g + b) / 3);
-    }
-
-    grayImage.push(retsu);
-  }
-
-  return grayImage;
-}
-
-const getGrayImageDataData = function(imageData) {
-  const data = [];
-
-  for(let y = 0; y < imageData.height; y++) {
-    for(let x = 0; x < imageData.width; x++) {
-      const offset = (imageData.width * 4 * y) + (4 * x);
-      const r = imageData.data[offset + 0];
-      const g = imageData.data[offset + 1];
-      const b = imageData.data[offset + 2];
-      let  gray = (r + g + b) / 3;
-      gray = (gray - 120) * 1.5 + 120;
-
-      data.push(gray);
-      data.push(gray);
-      data.push(gray);
-      data.push(255);
-    }
-  }
-
-  return data;
-}
-
-const isFaceArea = function(imageData, shiftPos) {
-  let sum = 0;
-
-  for(let y = 0; y < patternSize; y++) {
-    for(let x = 0; x < patternSize; x++) {
-      const offset = (4 * imageData.width * (y + shiftPos.y)) + (4 * (x + shiftPos.x));
-      let gray = imageData.data[offset + 0];
-
-      sum += gray;
-    }
-  }
-
-  const average = sum / (patternSize * patternSize);
-
-  if(shiftPos.x == 7 && shiftPos.y == 7) {
-    console.log(average);
-  }
-
-  return (average >= 40);
-}
-
-const getTateFaceScore = function(imageData, pattern, shiftPos) {
-  const targetImage = [];
-
-  for(let y = 0; y < patternSize; y++) {
-    const retsu = [];
-    for(let x = 0; x < patternSize; x++) {
-      const offset = (4 * imageData.width * (y + shiftPos.y)) + (4 * (x + shiftPos.x));
-      let gray = imageData.data[offset + 0];
-
-      if(pattern[y][x] == 1) {
-        gray -= gray * 0.25;
-      } else if(pattern[y][x] == 0){
-        gray += (255 - gray) * 0.25;
-      } else {
-        gray = null;
-      }
-
-      retsu.push(gray);
-    }
-    targetImage.push(retsu);
-  }
-
-  const num = [0, 0, 0];
-  const sum = [0, 0, 0];
-  const average = [0, 0, 0];
-
-  for(let y = 0; y < patternSize; y++) {
-    for(let x = 0; x < patternSize; x++) {
-      let group;
-      if(x < patternSize/3*1) {
-        group = 0;
-      } else if(x < patternSize/3*2) {
-        group = 1;
-      } else {
-        group = 2;
-      }
-      num[group] += 1;
-      sum[group] += targetImage[y][x];
-    }
-  }
-
-  average[0] = sum[0] / num[0];
-  average[1] = sum[1] / num[1];
-  average[2] = sum[2] / num[2];
-
-  if(average[0] < 90 || average[2] < 90) {
-    return 10000;
-  }
-  if(average[1] < 50) {
-    return 10000;
-  }
-
-
-  let score = 0;
-  score += Math.pow(average[0] - average[1], 2);
-  score += Math.pow(average[2] - average[1], 2);
-
-  if(shiftPos.x == 30 && shiftPos.y == 30) {
-    // console.log(average);
-  }
-
-  return score;
-}
-
-const getYokoFaceScore = function(imageData, pattern, shiftPos) {
-  const targetImage = [];
-
-  for(let y = 0; y < patternSize; y++) {
-    const retsu = [];
-    for(let x = 0; x < patternSize; x++) {
-      const offset = (4 * imageData.width * (y + shiftPos.y)) + (4 * (x + shiftPos.x));
-      let gray = imageData.data[offset + 0];
-
-      if(pattern[y][x] == 1) {
-        gray -= gray * 0.25;
-      } else if(pattern[y][x] == 0){
-        gray += (255 - gray) * 0.25;
-      } else {
-        gray = -1;
-      }
-
-      retsu.push(gray);
-    }
-    targetImage.push(retsu);
-  }
-
-  const num = [0, 0, 0, 0];
-  const sum = [0, 0, 0, 0];
-  const average = [0, 0, 0, 0];
-
-  for(let y = 0; y < patternSize; y++) {
-    for(let x = 0; x < patternSize; x++) {
-      if(targetImage[y][x] == -1) {
-        continue;
-      }
-
-      let group;
-      if(y < patternSize/3*1) {
-        if(x < patternSize/3*1) {
-          num[0] += 1;
-          sum[0] += targetImage[y][x];
-        }
-        if(x >= patternSize/3*2) {
-          num[1] += 1;
-          sum[1] += targetImage[y][x];
-        }
-      } else if(y < patternSize/3*2) {
-        if(x < patternSize/3*1) {
-          num[2] += 1;
-          sum[2] += targetImage[y][x];
-        }
-        if(x >= patternSize/3*2) {
-          num[3] += 1;
-          sum[3] += targetImage[y][x];
-        }
-      }
-    }
-  }
-
-  average[0] = sum[0] / num[0];
-  average[1] = sum[1] / num[1];
-  average[2] = sum[2] / num[2];
-  average[3] = sum[3] / num[3];
-
-  if(average[0] < 90 || average[2] < 90) {
-    return 10000;
-  }
-  if(average[1] < 50 || average[3] < 50) {
-    return 10000;
-  }
-
-  let score = 0;
-  score += Math.pow(average[0] - average[1], 2);
-  score += Math.pow(average[2] - average[3], 2);
-
-  if(shiftPos.x == 30 && shiftPos.y == 30) {
-    // console.log(score);
-  }
-
-  return score;
-}
-
-const getTateFacePattern = function() {
-  const pattern = [];
-
-  for(let y = 0; y < patternSize; y++) {
-    const retsu = [];
-    for(let x = 0; x < patternSize; x++) {
-      if(patternSize/3*1 <= x && x < patternSize/3*2) {
-        if(y < patternSize/3*2)
-        retsu.push(1);
-      }
-      retsu.push(0);
-    }
-    pattern.push(retsu);
-  }
-
-  return pattern;
-}
-
-const getYokoFacePattern = function() {
-  const pattern = [];
-
-  for(let y = 0; y < patternSize; y++) {
-    const retsu = [];
-    for(let x = 0; x < patternSize; x++) {
-      if(x < patternSize/3*1 || patternSize/3*2 <= x) {
-        if(y < patternSize/3*1) {
-          retsu.push(0);
-          continue;
-        } else if(y < patternSize/3*2) {
-          retsu.push(1);
-          continue;
-        }
-      }
-      retsu.push(null);
-    }
-    pattern.push(retsu);
-  }
-
-  return pattern;
 }
 
 const eyeMove = function(pageX, pageY) {
@@ -523,11 +193,8 @@ const eyeMove = function(pageX, pageY) {
     move_y = -4;
   }
 
-  $black_eye_left.transform(eye_left_tf);
-  $black_eye_left.translate(move_x, move_y);
-
-  $black_eye_right.transform(eye_right_tf);
-  $black_eye_right.translate(-move_x, move_y);
+  $black_eye_left.transform(eye_left_tf).translate(move_x, move_y);
+  $black_eye_right.transform(eye_right_tf).translate(-move_x, move_y);
 }
 
 const getVowel = function(dataArray) {
@@ -580,7 +247,7 @@ const getVowelScore = function(data, vowel) {
 const mouthAnimate = function(vowel) {
   const $mouth_open = SVG('#mouth_open');
   const $mouth_close = SVG('#mouth_close');
-  const anime_speed = 0.3;
+  const anime_speed = 0.5;
 
   for(let i = 0; i < 5; i++) {
     if(i + 1 == vowel) {
@@ -589,14 +256,13 @@ const mouthAnimate = function(vowel) {
         mouth_anime_frame[i] = 1.0;
       }
     } else {
-      mouth_anime_frame[i] -= anime_speed/4;
+      mouth_anime_frame[i] -= anime_speed/3;
       if(mouth_anime_frame[i] < 0.0) {
         mouth_anime_frame[i] = 0.0;
       }
     }
   }
 
-  $mouth_open.transform(mouth_open_tf);
   let frame_sum = 0;
   for(let i = 0; i < 5; i++) {
     frame_sum += mouth_anime_frame[i];
@@ -618,7 +284,8 @@ const mouthAnimate = function(vowel) {
       scaleX += mouth_anime_frame[i] * par * mouthVowelScale[i].x;
       scaleY += mouth_anime_frame[i] * par * mouthVowelScale[i].y;
     }
-    $mouth_open.scale(scaleX, scaleY);
+
+    $mouth_open.transform(mouth_open_tf).transform({scaleX: scaleX, scaleY: scaleY});;
   }
 
   if(scaleY >= 0.2) {

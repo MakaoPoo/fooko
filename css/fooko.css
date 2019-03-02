@@ -21,17 +21,18 @@ body {
 }
 
 #video {
+  display: none;
   position: absolute;
   background-color: #eb7f7f;
   position: absolute;
   right: 0;
-  width: 320px;
-  height: 180px;
+  /* width: 320px; */
+  /* height: 180px; */
 }
 
-#face {
+#canvas {
   position: absolute;
-  top: 5vw;
-  width: 720px;
-  height: 720px;
+  left: 10vw;
+  width: 800px;
+  height: 600px;
 }
